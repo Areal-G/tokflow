@@ -1,6 +1,37 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeComment, normalizeGift, normalizeMember, normalizeRoomStats, toLegacyGameEvent } from "../src/event-normalizer.js";
+import { normalizeComment, normalizeGift, normalizeMember, normalizeRoomStats, normalizeSocial, toLegacyGameEvent } from "../src/event-normalizer.js";
+
+test("detects follows and shares from real WebcastSocialMessage shapes", () => {
+  const follow = normalizeSocial({
+    msgId: "f1",
+    common: { displayType: "pm_main_follow_message_viewer_2" },
+    user: { userId: "1", displayId: "hana", nickname: "Hana" }
+  });
+  assert.equal(follow.type, "follow");
+  assert.equal(follow.user.username, "hana");
+
+  const share = normalizeSocial({
+    msgId: "s1",
+    shareType: 1,
+    user: { userId: "2", displayId: "dawit22" }
+  });
+  assert.equal(share.type, "share");
+
+  const shareByAction = normalizeSocial({ msgId: "s2", action: 3, user: { userId: "3" } });
+  assert.equal(shareByAction.type, "share");
+});
+
+test("reads the @handle from displayId and keeps comment emotes", () => {
+  const normalized = normalizeComment({
+    msgId: "c1",
+    comment: "hello",
+    emotes: [{ emote: { image: { urlList: ["https://example.test/emote.png"] } } }],
+    user: { userId: "9", displayId: "melat_h", nickname: "Melat" }
+  });
+  assert.equal(normalized.user.username, "melat_h");
+  assert.deepEqual(normalized.emotes, ["https://example.test/emote.png"]);
+});
 
 test("normalizes a finished gift streak without multiplying twice", () => {
   const normalized = normalizeGift({

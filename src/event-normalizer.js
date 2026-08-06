@@ -20,10 +20,12 @@ function avatarFrom(user = {}) {
 
 function userFrom(raw = {}) {
   const source = raw.user || raw.fromUser || {};
+  // Newer Webcast protos carry the @handle as displayId instead of uniqueId.
+  const handle = text(source.uniqueId || source.displayId || source.display_id || source.username);
   return {
-    id: text(source.userId || source.id || source.secUid || source.uniqueId, "unknown"),
-    username: text(source.uniqueId || source.username, "unknown"),
-    displayName: text(source.nickname || source.displayName || source.uniqueId, "TikTok viewer"),
+    id: text(source.userId || source.id || source.secUid || handle, "unknown"),
+    username: handle || "unknown",
+    displayName: text(source.nickname || source.displayName || handle, "TikTok viewer"),
     avatarUrl: avatarFrom(source)
   };
 }
@@ -86,13 +88,21 @@ export function normalizeRoomStats(raw = {}) {
 
 export function normalizeComment(raw = {}, now = Date.now()) {
   const user = userFrom(raw);
+  // TikTok emotes (subscriber stickers) arrive as images beside the text.
+  const emotes = (Array.isArray(raw.emotes) ? raw.emotes : raw.emotesList || [])
+    .map((entry) => {
+      const image = entry?.emote?.image || entry?.image || {};
+      return text(image.urlList?.[0] || image.url_list?.[0] || image.url);
+    })
+    .filter(Boolean);
   return {
     schemaVersion: 1,
     id: messageId(raw) || `comment:${user.id}:${now}`,
     type: "comment",
     occurredAt: new Date(now).toISOString(),
     user,
-    comment: text(raw.comment || raw.content || raw.text)
+    comment: text(raw.comment || raw.content || raw.text),
+    emotes
   };
 }
 
@@ -110,15 +120,29 @@ export function normalizeMember(raw = {}, now = Date.now()) {
 
 export function normalizeSocial(raw = {}, now = Date.now()) {
   const user = userFrom(raw);
-  const action = text(raw.action || raw.label || raw.displayType, "social").toLowerCase();
-  const type = action.includes("follow") ? "follow" : action.includes("share") ? "share" : "social";
+  // Real WebcastSocialMessage frames carry their kind in nested common fields
+  // (e.g. displayType "pm_main_follow_message_viewer_2") or as the numeric
+  // action enum (1 = follow, 3 = share). Check every known location.
+  const label = [
+    raw.action,
+    raw.label,
+    raw.displayType,
+    raw.common?.displayType,
+    raw.common?.displayText?.key,
+    raw.common?.describe
+  ].map((value) => text(value)).join(" ").toLowerCase();
+  const actionNumber = Number(raw.action);
+  const shareType = Number(raw.shareType);
+  let type = "social";
+  if (label.includes("follow") || actionNumber === 1) type = "follow";
+  else if (label.includes("share") || actionNumber === 3 || shareType > 0) type = "share";
   return {
     schemaVersion: 1,
     id: messageId(raw) || `${type}:${user.id}:${now}`,
     type,
     occurredAt: new Date(now).toISOString(),
     user,
-    action
+    action: type
   };
 }
 

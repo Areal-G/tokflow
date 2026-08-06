@@ -7,6 +7,12 @@ let heartbeatTimer = null;
 let lastStatus = OFFLINE_STATUS;
 const pending = [];
 
+// Back off while the engine is down so chrome://extensions doesn't fill with
+// one ERR_CONNECTION_REFUSED entry every two seconds. The 30s alarm still
+// guarantees a reconnect attempt even after long downtime.
+let reconnectDelay = 2000;
+const MAX_RECONNECT_DELAY = 30000;
+
 // Diagnostic counters shown in the popup. Mirrored to session storage so a
 // restarted service worker still reports totals from this browser session.
 let capture = { frames: 0, lastFrameAt: null, pageReadyAt: null };
@@ -41,7 +47,51 @@ async function setLiveTabId(id) {
   else await chrome.storage.session.set({ liveTabId: id }).catch(() => {});
 }
 
+// Bandwidth saver, applied ONLY to the reader tab TokFlow opens itself:
+// block the live video downloads (.flv / HLS from pull-* stream servers) and
+// pause the player. The Webcast event socket is a separate wss connection and
+// keeps flowing.
+const STREAM_BLOCK_RULE_IDS = [7001, 7002, 7003];
+
+async function blockVideoStream(tabId) {
+  const base = { tabIds: [tabId], resourceTypes: ["media", "xmlhttprequest", "other"] };
+  try {
+    await chrome.declarativeNetRequest.updateSessionRules({
+      removeRuleIds: STREAM_BLOCK_RULE_IDS,
+      addRules: [
+        { id: 7001, action: { type: "block" }, condition: { ...base, regexFilter: "^https?://pull-[^/]+/" } },
+        { id: 7002, action: { type: "block" }, condition: { ...base, regexFilter: "\\.flv([?#]|$)" } },
+        { id: 7003, action: { type: "block" }, condition: { ...base, regexFilter: "\\.m3u8([?#]|$)" } }
+      ]
+    });
+  } catch { /* best effort */ }
+}
+
+async function unblockVideoStream() {
+  try { await chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: STREAM_BLOCK_RULE_IDS }); } catch { /* nothing to remove */ }
+}
+
+function pauseVideoLoop() {
+  const quiet = () => document.querySelectorAll("video").forEach((video) => {
+    try {
+      video.muted = true;
+      video.preload = "none";
+      if (!video.paused) video.pause();
+    } catch { /* keep trying */ }
+  });
+  quiet();
+  setInterval(quiet, 4000);
+}
+
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
+  if (changeInfo.status !== "complete") return;
+  const readerTabId = await getLiveTabId();
+  if (tabId !== readerTabId) return;
+  chrome.scripting.executeScript({ target: { tabId }, func: pauseVideoLoop }).catch(() => {});
+});
+
 async function closeLiveWindow() {
+  await unblockVideoStream();
   const id = await getLiveTabId();
   if (id === null) return;
   await setLiveTabId(null);
@@ -79,6 +129,7 @@ async function openLiveWindow(username) {
   if (created?.id !== undefined) {
     try { await chrome.tabs.update(created.id, { muted: true }); } catch { /* mute is best-effort */ }
     await setLiveTabId(created.id);
+    await blockVideoStream(created.id);
   }
 }
 
@@ -90,7 +141,8 @@ function connect() {
   try {
     socket = new WebSocket(ENGINE_URL);
   } catch {
-    reconnectTimer = setTimeout(connect, 2000);
+    reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY);
+    reconnectTimer = setTimeout(connect, reconnectDelay);
     return;
   }
   connector = socket;
@@ -99,6 +151,7 @@ function connect() {
       socket.close();
       return;
     }
+    reconnectDelay = 2000;
     saveStatus({ state: "ready", message: "Local LIVE engine connected." });
     socket.send(JSON.stringify({ type: "reader-controller-ready" }));
     while (pending.length && socket.readyState === WebSocket.OPEN) {
@@ -119,14 +172,19 @@ function connect() {
     connector = null;
     clearInterval(heartbeatTimer);
     saveStatus(OFFLINE_STATUS);
-    reconnectTimer = setTimeout(connect, 2000);
+    reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY);
+    reconnectTimer = setTimeout(connect, reconnectDelay);
   });
   socket.addEventListener("error", () => socket.close());
 }
 
 chrome.tabs.onRemoved.addListener(async (tabId) => {
+  if (tabId === sourceTabId) sourceTabId = null;
   const id = await getLiveTabId();
-  if (tabId === id) await setLiveTabId(null);
+  if (tabId === id) {
+    await setLiveTabId(null);
+    await unblockVideoStream();
+  }
 });
 
 // The alarm revives the service worker if Chrome put it to sleep while the
@@ -138,13 +196,25 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 chrome.runtime.onStartup.addListener(connect);
 chrome.runtime.onInstalled.addListener(connect);
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+// Only one tab may feed LIVE frames at a time. If the same room is open in
+// two tabs (the reader tab plus the user's own), relaying both would double
+// every gift and comment.
+let sourceTabId = null;
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (["capture-open", "capture-frame", "capture-close", "capture-ready"].includes(message?.type)) {
+    const tabId = sender?.tab?.id ?? null;
+    if (message.type === "capture-open" && sourceTabId === null) sourceTabId = tabId;
     if (message.type === "capture-frame") {
+      if (sourceTabId !== null && tabId !== null && tabId !== sourceTabId) {
+        sendResponse({ ok: true, ignored: true });
+        return;
+      }
       capture.frames += 1;
       capture.lastFrameAt = new Date().toISOString();
       if (capture.frames === 1 || capture.frames % 25 === 0) persistCapture();
     }
+    if (message.type === "capture-close" && tabId === sourceTabId) sourceTabId = null;
     if (message.type === "capture-ready") {
       capture.pageReadyAt = new Date().toISOString();
       persistCapture();

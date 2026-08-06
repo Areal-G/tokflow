@@ -34,7 +34,7 @@ test("dashboard and local event bridge work end to end", async (context) => {
 
   const page = await fetch("http://127.0.0.1:24881/");
   assert.equal(page.status, 200);
-  assert.match(await page.text(), /TikTok connection/);
+  assert.match(await page.text(), /tokflow/i);
 
   const socket = new WebSocket("ws://127.0.0.1:24881/events");
   context.after(() => socket.close());

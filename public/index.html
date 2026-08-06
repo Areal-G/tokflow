@@ -20,8 +20,8 @@
     <header class="topbar">
       <div class="brand">
         <svg class="mark" viewBox="0 0 44 44" aria-hidden="true">
-          <path d="M8 18 C 14 11, 20 11, 24 16 S 33 22.5, 38 15.5" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round"/>
-          <path d="M8 31 C 14 24, 20 24, 24 29 S 33 35.5, 38 28.5" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" opacity="0.35"/>
+          <path d="M7 18.4 C 10 14.2, 13.4 14.2, 16.4 18.4 C 19.4 22.6, 22.6 22.6, 25.6 18.4 C 28.6 14.2, 32 14.2, 35 18.4" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/>
+          <path d="M7 31.4 C 10 27.2, 13.4 27.2, 16.4 31.4 C 19.4 35.6, 22.6 35.6, 25.6 31.4 C 28.6 27.2, 32 27.2, 35 31.4" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" opacity="0.35"/>
         </svg>
         <b>tokflow</b>
       </div>
@@ -52,24 +52,38 @@
       <div class="stat glass"><small>Connected time</small><strong id="liveDuration">—</strong></div>
       <div class="stat glass"><small>Likes</small><strong id="likeCount">0</strong></div>
       <div class="stat glass"><small>Gifts</small><strong id="giftCount">0</strong></div>
+      <div class="stat glass"><small>New follows</small><strong id="followCount">0</strong></div>
+      <div class="stat glass"><small>Shares</small><strong id="shareCount">0</strong></div>
     </section>
 
     <section class="board">
-      <section class="lane glass">
+      <section class="lane glass lane-likers">
         <div class="lane-head"><h4>Top likers</h4><b>by total likes</b></div>
         <div id="likeActivity" class="lane-list"><div class="lane-empty">Waiting for Likes…</div></div>
       </section>
-      <section class="lane glass">
+      <section class="lane glass lane-gifters">
+        <div class="lane-head"><h4>Top gifters</h4><b>by coins</b></div>
+        <div id="gifterActivity" class="lane-list"><div class="lane-empty">Waiting for Gifts…</div></div>
+      </section>
+      <section class="lane glass lane-joined">
         <div class="lane-head"><h4>Joined</h4><b id="joinCount">0</b></div>
         <div id="joinActivity" class="lane-list"><div class="lane-empty">Waiting for viewers…</div></div>
       </section>
-      <section class="lane glass">
+      <section class="lane glass lane-comments">
         <div class="lane-head"><h4>Comments</h4><b id="commentCount">0</b></div>
         <div id="commentActivity" class="lane-list"><div class="lane-empty">Waiting for comments…</div></div>
       </section>
-      <section class="lane glass">
+      <section class="lane glass lane-gifts">
         <div class="lane-head"><h4>Gifts</h4><b>with icons</b></div>
         <div id="giftActivity" class="lane-list"><div class="lane-empty">Waiting for Gifts…</div></div>
+      </section>
+      <section class="lane glass lane-follows">
+        <div class="lane-head"><h4>Follows</h4><b>this session</b></div>
+        <div id="followActivity" class="lane-list"><div class="lane-empty">Waiting for follows…</div></div>
+      </section>
+      <section class="lane glass lane-shares">
+        <div class="lane-head"><h4>Shares</h4><b>this session</b></div>
+        <div id="shareActivity" class="lane-list"><div class="lane-empty">Waiting for shares…</div></div>
       </section>
     </section>
 

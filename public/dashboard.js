@@ -4,10 +4,12 @@
   const viewerStats = $("#viewerStats");
   const client = new window.TokFlow.LiveGameClient({ url: `ws://${window.location.host}/events` });
   const labels = { idle: "READY", login: "AGE CHECK", connecting: "CONNECTING", connected: "LIVE CONNECTED", waiting: "RECONNECTING", disconnected: "DISCONNECTED", error: "NEEDS ATTENTION" };
-  const activityTargets = { like: $("#likeActivity"), join: $("#joinActivity"), comment: $("#commentActivity"), gift: $("#giftActivity") };
-  const emptyLabels = { like: "Waiting for Likes…", join: "Waiting for viewers…", comment: "Waiting for comments…", gift: "Waiting for Gifts…" };
-  const activityCounts = { like: 0, join: 0, comment: 0, gift: 0 };
+  const activityTargets = { like: $("#likeActivity"), join: $("#joinActivity"), comment: $("#commentActivity"), gift: $("#giftActivity"), follow: $("#followActivity"), share: $("#shareActivity") };
+  const emptyLabels = { like: "Waiting for Likes…", join: "Waiting for viewers…", comment: "Waiting for comments…", gift: "Waiting for Gifts…", follow: "Waiting for follows…", share: "Waiting for shares…" };
+  const activityCounts = { like: 0, join: 0, comment: 0, gift: 0, follow: 0, share: 0 };
   const likeBoard = new Map();
+  const giftBoard = new Map();
+  const shareBoard = new Map();
   let latestStatus = { state: "idle", viewerCount: 0, connectedAt: null };
 
   function updateLiveMetrics() {
@@ -103,10 +105,82 @@
       name.textContent = entry.user.displayName || entry.user.username || "TikTok viewer";
       const message = document.createElement("p");
       message.textContent = `liked ${entry.total.toLocaleString()} ${entry.total === 1 ? "time" : "times"}`;
-      copy.append(name, message);
+      copy.append(linkedName(entry.user, name), message);
       const time = document.createElement("time");
       time.textContent = new Date(entry.updatedAt || Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
       item.append(rank, makeAvatar(entry.user, "lane-avatar"), copy, time);
+      target.appendChild(item);
+    });
+  }
+
+  // Wraps a name element in a link to the viewer's TikTok profile when we
+  // know their @username.
+  function linkedName(user, nameElement) {
+    const username = String(user?.username || "").trim().replace(/^@/, "");
+    if (!username || username === "unknown" || !/^[A-Za-z0-9._]{2,32}$/.test(username)) return nameElement;
+    const link = document.createElement("a");
+    link.href = `https://www.tiktok.com/@${encodeURIComponent(username)}`;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.className = "user-link";
+    link.title = `Open @${username} on TikTok`;
+    link.appendChild(nameElement);
+    return link;
+  }
+
+  function renderGiftBoard() {
+    const target = $("#gifterActivity");
+    target.replaceChildren();
+    const entries = [...giftBoard.values()].sort((a, b) =>
+      b.coins - a.coins || String(b.updatedAt).localeCompare(String(a.updatedAt)));
+    if (!entries.length) {
+      target.innerHTML = `<div class="lane-empty">Waiting for Gifts…</div>`;
+      return;
+    }
+    entries.slice(0, 40).forEach((entry, index) => {
+      const item = document.createElement("div");
+      item.className = `lane-row like-rank-row${index === 0 ? " like-top" : ""}`;
+      const rank = document.createElement("b");
+      rank.className = "like-rank";
+      rank.textContent = index === 0 ? "♛" : String(index + 1);
+      const copy = document.createElement("div");
+      copy.className = "lane-copy";
+      const name = document.createElement("strong");
+      name.textContent = entry.user.displayName || entry.user.username || "TikTok viewer";
+      const message = document.createElement("p");
+      message.textContent = `${entry.coins.toLocaleString()} ${entry.coins === 1 ? "coin" : "coins"}`;
+      copy.append(linkedName(entry.user, name), message);
+      const time = document.createElement("time");
+      time.textContent = new Date(entry.updatedAt || Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      item.append(rank, makeAvatar(entry.user, "lane-avatar"), copy, time);
+      target.appendChild(item);
+    });
+  }
+
+  function renderShareBoard() {
+    const target = $("#shareActivity");
+    target.replaceChildren();
+    const entries = [...shareBoard.values()].sort((a, b) =>
+      b.count - a.count || String(b.updatedAt).localeCompare(String(a.updatedAt)));
+    if (!entries.length) {
+      target.innerHTML = `<div class="lane-empty">Waiting for shares…</div>`;
+      return;
+    }
+    entries.slice(0, 40).forEach((entry) => {
+      const item = document.createElement("div");
+      item.className = "lane-row";
+      const copy = document.createElement("div");
+      copy.className = "lane-copy";
+      const name = document.createElement("strong");
+      name.textContent = entry.user.displayName || entry.user.username || "TikTok viewer";
+      const message = document.createElement("p");
+      message.textContent = entry.count === 1
+        ? "Shared the LIVE ↗"
+        : `Shared the LIVE ↗ · ${entry.count.toLocaleString()} times`;
+      copy.append(linkedName(entry.user, name), message);
+      const time = document.createElement("time");
+      time.textContent = new Date(entry.updatedAt || Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      item.append(makeAvatar(entry.user, "lane-avatar"), copy, time);
       target.appendChild(item);
     });
   }
@@ -121,6 +195,24 @@
       return;
     }
     const displayName = row.event.user?.displayName || row.event.user?.username || "TikTok viewer";
+    if (type === "share") {
+      const key = likeKey(row.event.user);
+      const entry = shareBoard.get(key) || { user: {}, count: 0 };
+      entry.count += 1;
+      const incoming = row.event.user || {};
+      entry.user = {
+        id: incoming.id || entry.user.id || "",
+        username: incoming.username || entry.user.username || "",
+        displayName: incoming.displayName || entry.user.displayName || "",
+        avatarUrl: incoming.avatarUrl || entry.user.avatarUrl || ""
+      };
+      entry.updatedAt = row.timestamp || new Date().toISOString();
+      shareBoard.set(key, entry);
+      renderShareBoard();
+      activityCounts.share += 1;
+      $("#shareCount").textContent = activityCounts.share.toLocaleString();
+      return;
+    }
     if (type === "like") {
       const likeCount = Math.max(1, Number(row.event.count) || 1);
       const key = likeKey(row.event.user);
@@ -148,10 +240,28 @@
     const name = document.createElement("strong");
     name.textContent = displayName;
     const message = document.createElement("p");
-    if (type === "comment") message.textContent = row.event.comment || "Comment text unavailable";
+    if (type === "comment") {
+      const commentText = row.event.comment || "";
+      const emotes = Array.isArray(row.event.emotes) ? row.event.emotes : [];
+      if (commentText) message.appendChild(document.createTextNode(commentText));
+      emotes.forEach((url) => {
+        const emote = document.createElement("img");
+        emote.className = "gift-icon";
+        emote.src = url;
+        emote.alt = "";
+        emote.referrerPolicy = "no-referrer";
+        emote.addEventListener("error", () => emote.remove());
+        message.appendChild(emote);
+      });
+      if (!commentText && !emotes.length) message.textContent = "Comment text unavailable";
+    }
     else if (type === "join") message.textContent = "Joined the LIVE";
+    else if (type === "follow") message.textContent = "Started following ✚";
+    else if (type === "share") message.textContent = "Shared the LIVE ↗";
     else if (type === "gift") {
       const repeat = Math.max(1, Number(row.event.gift?.repeatCount) || 1);
+      const coins = Math.max(0, Number(row.event.gift?.totalCoins)
+        || Math.max(0, Number(row.event.gift?.coinsPerGift) || 0) * repeat);
       const iconUrl = String(row.event.gift?.imageUrl || "");
       if (iconUrl) {
         const icon = document.createElement("img");
@@ -162,10 +272,25 @@
         icon.addEventListener("error", () => icon.remove());
         message.appendChild(icon);
       }
-      message.appendChild(document.createTextNode(`${repeat.toLocaleString()}× ${row.event.gift?.name || "Gift"}`));
+      const coinsLabel = coins ? ` · ${coins.toLocaleString()} ${coins === 1 ? "coin" : "coins"}` : "";
+      message.appendChild(document.createTextNode(`${repeat.toLocaleString()}× ${row.event.gift?.name || "Gift"}${coinsLabel}`));
+
+      const key = likeKey(row.event.user);
+      const entry = giftBoard.get(key) || { user: {}, coins: 0 };
+      entry.coins += coins;
+      const incoming = row.event.user || {};
+      entry.user = {
+        id: incoming.id || entry.user.id || "",
+        username: incoming.username || entry.user.username || "",
+        displayName: incoming.displayName || entry.user.displayName || "",
+        avatarUrl: incoming.avatarUrl || entry.user.avatarUrl || ""
+      };
+      entry.updatedAt = row.timestamp || new Date().toISOString();
+      giftBoard.set(key, entry);
+      renderGiftBoard();
     }
     else message.textContent = row.message || "Event received";
-    copy.append(name, message);
+    copy.append(linkedName(row.event.user, name), message);
     const time = document.createElement("time");
     time.textContent = new Date(row.timestamp || Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     item.append(makeAvatar(row.event.user, "lane-avatar"), copy, time);
@@ -177,6 +302,9 @@
 
   function resetActivity() {
     likeBoard.clear();
+    giftBoard.clear();
+    shareBoard.clear();
+    $("#gifterActivity").innerHTML = `<div class="lane-empty">Waiting for Gifts…</div>`;
     Object.entries(activityTargets).forEach(([type, target]) => {
       activityCounts[type] = 0;
       $(`#${type}Count`).textContent = "0";
@@ -204,7 +332,7 @@
       name.textContent = viewer.user.displayName || viewer.user.username || "TikTok viewer";
       const username = document.createElement("small");
       username.textContent = viewer.user.username && viewer.user.username !== "unknown" ? `@${viewer.user.username}` : "TikTok viewer";
-      identity.append(name, username);
+      identity.append(linkedName(viewer.user, name), username);
       row.append(makeAvatar(viewer.user, "viewer-avatar"), identity);
       [
         [viewer.comments, "Comments"],

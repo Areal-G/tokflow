@@ -1,7 +1,9 @@
 import { EventEmitter } from "node:events";
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import { deserializeWebSocketMessage } from "tiktok-live-connector";
+import { RecentEvents } from "./recent-events.js";
 import { normalizeComment, normalizeGift, normalizeLike, normalizeMember, normalizeRoomStats, normalizeSocial } from "./event-normalizer.js";
 
 export function cleanUsername(value) {
@@ -52,6 +54,10 @@ export class TikTokProvider extends EventEmitter {
     this.captureAccept = null;
     this.captureReject = null;
     this.readerReady = false;
+    // TikTok pages can run two Webcast sockets at once (reconnects, or the
+    // user's own tab plus the reader tab). Byte-identical frames are true
+    // duplicates — drop them so one Rose never counts twice.
+    this.recentFrames = new RecentEvents({ ttlMs: 30000, maxSize: 2000 });
   }
 
   async connect(username, { autoReconnect = true } = {}) {
@@ -156,6 +162,11 @@ export class TikTokProvider extends EventEmitter {
 
   async acceptCapturedFrame(payload) {
     if (this.stoppedByUser || typeof payload !== "string") return;
+    const signature = createHash("sha1").update(payload).digest("hex");
+    if (this.recentFrames.hasOrAdd(signature)) {
+      this.emit("log", { level: "debug", message: "Dropped a duplicate LIVE frame." });
+      return;
+    }
     await this.#handleFrame(Buffer.from(payload, "base64"), this.generation);
   }
 
