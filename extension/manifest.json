@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "TokFlow LIVE Reader",
+  "version": "1.3.0",
+  "minimum_chrome_version": "116",
+  "description": "Streams public TikTok LIVE activity (comments, likes, gifts, joins) to the local TokFlow engine.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "TokFlow LIVE Reader",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": ["storage", "tabs", "windows", "alarms"],
+  "content_scripts": [
+    {
+      "matches": ["https://www.tiktok.com/*", "https://*.tiktok.com/*"],
+      "js": ["hook.js"],
+      "run_at": "document_start",
+      "all_frames": true,
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://www.tiktok.com/*", "https://*.tiktok.com/*"],
+      "js": ["bridge.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ],
+  "host_permissions": [
+    "https://www.tiktok.com/*",
+    "https://*.tiktok.com/*",
+    "http://127.0.0.1/*"
+  ]
+}

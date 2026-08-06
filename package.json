@@ -1,0 +1,16 @@
+{
+  "name": "tokflow-engine",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "TokFlow — local TikTok LIVE data engine: real-time comments, likes, gifts and joins for dashboards and interactive games.",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "playwright-core": "^1.54.0",
+    "tiktok-live-connector": "^2.1.0",
+    "ws": "^8.18.0"
+  }
+}
