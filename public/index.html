@@ -3,8 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>TokFlow — LIVE data engine</title>
+  <title>TokFlow</title>
   <link rel="icon" type="image/png" href="favicon.png">
+  <script>
+    // Apply the saved theme before first paint to avoid a flash.
+    try {
+      const saved = localStorage.getItem("tokflow-theme");
+      if (saved === "light" || saved === "dark") document.documentElement.dataset.theme = saved;
+    } catch { /* private mode */ }
+  </script>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body data-status="idle">
@@ -12,107 +19,85 @@
 
     <header class="topbar">
       <div class="brand">
-        <svg class="logo" viewBox="0 0 48 48" aria-hidden="true">
-          <defs>
-            <linearGradient id="flowGrad" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0" stop-color="#22d3ee"/>
-              <stop offset="1" stop-color="#f472b6"/>
-            </linearGradient>
-          </defs>
-          <rect width="48" height="48" rx="11" fill="#10141b"/>
-          <path d="M3 21 C 11 11, 19 12, 24 19 S 39 28, 45 17" fill="none" stroke="url(#flowGrad)" stroke-width="6.5" stroke-linecap="round"/>
-          <path d="M3 33 C 11 24, 19 25, 24 31 S 39 39, 45 29" fill="none" stroke="url(#flowGrad)" stroke-width="3.5" stroke-linecap="round" opacity="0.4"/>
+        <svg class="mark" viewBox="0 0 44 44" aria-hidden="true">
+          <path d="M8 18 C 14 11, 20 11, 24 16 S 33 22.5, 38 15.5" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round"/>
+          <path d="M8 31 C 14 24, 20 24, 24 29 S 33 35.5, 38 28.5" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" opacity="0.35"/>
         </svg>
-        <div>
-          <h1>TokFlow</h1>
-          <span>TikTok LIVE data engine</span>
-        </div>
+        <b>tokflow</b>
       </div>
       <div class="topbar-right">
-        <div class="status-pill"><span class="status-dot"></span><b id="statusLabel">READY</b></div>
-        <span class="address">127.0.0.1:24880</span>
+        <div class="status-pill glass"><span class="status-dot"></span><b id="statusLabel">READY</b></div>
+        <button class="theme-toggle glass" id="themeToggle" title="Switch theme" aria-label="Switch theme"></button>
       </div>
     </header>
 
-    <section class="hero">
-      <div class="hero-copy">
-        <h2 id="statusMessage">Ready to connect.</h2>
-        <p id="statusDetail">Start your TikTok LIVE first, then connect using your username.</p>
-      </div>
-      <div class="stats">
-        <div class="stat"><small>WATCHING NOW</small><strong id="liveViewerCount">—</strong></div>
-        <div class="stat"><small>CONNECTED TIME</small><strong id="liveDuration">—</strong></div>
-        <div class="stat stat-likes"><small>TOTAL LIKES</small><strong id="likeCount">0</strong></div>
-        <div class="stat stat-gifts"><small>TOTAL GIFTS</small><strong id="giftCount">0</strong></div>
-      </div>
+    <section class="statusline">
+      <h2 id="statusMessage">Ready to connect.</h2>
+      <p id="statusDetail">Start your TikTok LIVE first, then connect using your username.</p>
     </section>
 
-    <section class="controls">
-      <form class="panel connect-panel" id="connectForm">
-        <h3>Connect a LIVE</h3>
-        <div class="input-row">
-          <span>@</span>
-          <input id="username" autocomplete="off" spellcheck="false" placeholder="username" required>
-          <button id="connectButton" class="primary">Connect</button>
-        </div>
-        <label class="check"><input type="checkbox" id="autoReconnect" checked><span></span>Auto-reconnect if TikTok drops</label>
-        <div class="button-row">
-          <button type="button" class="ghost" id="openLoginButton">Open TikTok login</button>
-          <button type="button" class="ghost" id="disconnectButton">Disconnect</button>
-        </div>
+    <section class="connect-row">
+      <form class="connect glass" id="connectForm">
+        <span>@</span>
+        <input id="username" autocomplete="off" spellcheck="false" aria-label="TikTok username" required>
+        <button id="connectButton" class="primary">Connect</button>
       </form>
+      <label class="check glass"><input type="checkbox" id="autoReconnect" checked>Auto-reconnect</label>
+      <button type="button" class="quiet" id="openLoginButton">Open TikTok login</button>
+      <button type="button" class="quiet" id="disconnectButton">Disconnect</button>
+    </section>
 
-      <section class="panel test-panel">
-        <h3>Send a test event</h3>
-        <p class="hint">Simulates a Gift through the same channel real events use.</p>
-        <div class="test-fields">
-          <label>Gift<input id="testGift" value="Rose"></label>
-          <label>Coins<input id="testCoins" type="number" min="0" value="1"></label>
-          <label>Viewer<input id="testViewer" value="Test Viewer"></label>
-        </div>
-        <button id="sendTest" class="ghost accent">Send test Gift</button>
+    <section class="stats">
+      <div class="stat glass"><small>Watching now</small><strong id="liveViewerCount">—</strong></div>
+      <div class="stat glass"><small>Connected time</small><strong id="liveDuration">—</strong></div>
+      <div class="stat glass"><small>Likes</small><strong id="likeCount">0</strong></div>
+      <div class="stat glass"><small>Gifts</small><strong id="giftCount">0</strong></div>
+    </section>
+
+    <section class="board">
+      <section class="lane glass">
+        <div class="lane-head"><h4>Top likers</h4><b>by total likes</b></div>
+        <div id="likeActivity" class="lane-list"><div class="lane-empty">Waiting for Likes…</div></div>
+      </section>
+      <section class="lane glass">
+        <div class="lane-head"><h4>Joined</h4><b id="joinCount">0</b></div>
+        <div id="joinActivity" class="lane-list"><div class="lane-empty">Waiting for viewers…</div></div>
+      </section>
+      <section class="lane glass">
+        <div class="lane-head"><h4>Comments</h4><b id="commentCount">0</b></div>
+        <div id="commentActivity" class="lane-list"><div class="lane-empty">Waiting for comments…</div></div>
+      </section>
+      <section class="lane glass">
+        <div class="lane-head"><h4>Gifts</h4><b>with icons</b></div>
+        <div id="giftActivity" class="lane-list"><div class="lane-empty">Waiting for Gifts…</div></div>
       </section>
     </section>
 
-    <section class="panel board-panel">
-      <div class="panel-head">
-        <h3>Live activity</h3>
-        <button class="ghost" id="clearLog">Clear</button>
-      </div>
-      <div class="event-board">
-        <section class="event-lane lane-like">
-          <div class="event-lane-head"><div><span class="lane-icon">♥</span><h4>Likes</h4></div><b id="likeLaneNote">top likers</b></div>
-          <div id="likeActivity" class="event-lane-list"><div class="lane-empty">Waiting for Likes…</div></div>
-        </section>
-        <section class="event-lane lane-join">
-          <div class="event-lane-head"><div><span class="lane-icon">→</span><h4>Joined</h4></div><b id="joinCount">0</b></div>
-          <div id="joinActivity" class="event-lane-list"><div class="lane-empty">Waiting for viewers…</div></div>
-        </section>
-        <section class="event-lane lane-comment">
-          <div class="event-lane-head"><div><span class="lane-icon">“</span><h4>Comments</h4></div><b id="commentCount">0</b></div>
-          <div id="commentActivity" class="event-lane-list"><div class="lane-empty">Waiting for comments…</div></div>
-        </section>
-        <section class="event-lane lane-gift">
-          <div class="event-lane-head"><div><span class="lane-icon">◆</span><h4>Gifts</h4></div><b id="giftLaneNote">with icons</b></div>
-          <div id="giftActivity" class="event-lane-list"><div class="lane-empty">Waiting for Gifts…</div></div>
-        </section>
-      </div>
-      <div class="system-notice"><span>ENGINE</span><p id="systemNotice">The connector is ready.</p></div>
-    </section>
+    <div class="notice glass"><span>Engine</span><p id="systemNotice">The connector is ready.</p><button class="quiet" id="clearLog">Clear activity</button></div>
 
-    <section class="panel viewers-panel">
+    <section class="panel glass viewers">
       <div class="panel-head">
-        <h3>Viewer totals</h3>
-        <button class="ghost" id="clearViewerStats">Reset</button>
+        <div><h3>Viewer totals</h3><p>Per-viewer comments, Gifts and Likes this session.</p></div>
+        <button class="quiet" id="clearViewerStats">Reset</button>
       </div>
-      <p class="hint">Per-viewer comments, Gifts and Likes for this session. Gift totals include repeats.</p>
       <div id="viewerStats" class="viewer-stats"><div class="empty">Waiting for viewer activity…</div></div>
     </section>
 
+    <section class="panel glass tester">
+      <div class="panel-head">
+        <div><h3>Test event</h3><p>Sends a sample Gift through the same channel real events use.</p></div>
+      </div>
+      <div class="test-fields">
+        <label>Gift<input id="testGift" value="Rose"></label>
+        <label>Coins<input id="testCoins" type="number" min="0" value="1"></label>
+        <label>Viewer<input id="testViewer" value="Test Viewer"></label>
+        <button id="sendTest" class="quiet">Send test Gift</button>
+      </div>
+    </section>
+
     <footer>
-      <span>TOKFLOW ENGINE v1</span>
-      <span>RUNS 100% ON THIS PC</span>
-      <span id="gameCount">LOCAL ONLY · 127.0.0.1:24880</span>
+      <span>tokflow engine v1</span>
+      <span id="gameCount">runs only on this pc · 127.0.0.1:24880</span>
     </footer>
   </main>
   <script src="live-game-client.js"></script>

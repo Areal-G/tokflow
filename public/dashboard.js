@@ -96,7 +96,7 @@
       item.className = `lane-row like-rank-row${index === 0 ? " like-top" : ""}`;
       const rank = document.createElement("b");
       rank.className = "like-rank";
-      rank.textContent = index === 0 ? "👑" : String(index + 1);
+      rank.textContent = index === 0 ? "♛" : String(index + 1);
       const copy = document.createElement("div");
       copy.className = "lane-copy";
       const name = document.createElement("strong");
@@ -270,6 +270,15 @@
     };
     client.send({ type: "simulate", event });
   });
+  $("#themeToggle").addEventListener("click", () => {
+    const root = document.documentElement;
+    const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const current = root.dataset.theme || (systemDark ? "dark" : "light");
+    const next = current === "dark" ? "light" : "dark";
+    root.dataset.theme = next;
+    try { localStorage.setItem("tokflow-theme", next); } catch { /* private mode */ }
+  });
+
   setInterval(updateLiveMetrics, 1000);
   client.connect();
 })();

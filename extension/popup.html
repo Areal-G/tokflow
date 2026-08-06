@@ -8,24 +8,30 @@
 </head>
 <body>
   <main>
-    <div class="eyebrow">TOKFLOW</div>
-    <h1>LIVE Reader</h1>
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 44 44" aria-hidden="true">
+        <path d="M8 18 C 14 11, 20 11, 24 16 S 33 22.5, 38 15.5" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round"/>
+        <path d="M8 31 C 14 24, 20 24, 24 29 S 33 35.5, 38 28.5" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" opacity="0.35"/>
+      </svg>
+      <b>tokflow</b>
+      <span>LIVE Reader</span>
+    </div>
     <div class="status" id="status" data-state="offline">
       <span class="dot"></span>
       <div><strong id="statusLabel">ENGINE OFFLINE</strong><small id="statusMessage">Start the local LIVE engine.</small></div>
     </div>
     <label for="username">TikTok LIVE username</label>
-    <div class="username"><span>@</span><input id="username" autocomplete="off" spellcheck="false" placeholder="fetty_bae46"></div>
+    <div class="username"><span>@</span><input id="username" autocomplete="off" spellcheck="false"></div>
     <div class="actions">
       <button id="connect" class="primary">Connect LIVE</button>
       <button id="stop">Stop</button>
     </div>
-    <button id="testGift" class="test">Test Rose Gift · +10 Doro</button>
+    <button id="testGift" class="test">Send a test Rose</button>
     <div class="capture" id="captureRow" hidden>
       <span class="capture-dot"></span>
       <span id="captureInfo"></span>
     </div>
-    <button id="dashboard" class="link">Open activity dashboard →</button>
+    <button id="dashboard" class="link">Open dashboard</button>
     <p class="privacy">Runs locally. No TikTok password or cookie is copied.</p>
   </main>
   <script src="popup.js"></script>
