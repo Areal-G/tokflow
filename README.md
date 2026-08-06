@@ -9,7 +9,18 @@ TokFlow has two parts:
 
 Everything runs locally. Nothing is sent to any cloud.
 
-## Setup (any computer)
+## Easiest setup: the Windows installer
+
+Run `TokFlow-Setup-<version>.exe` (build it with `npm run dist`, output lands in `dist/`). It installs TokFlow with a desktop shortcut and a system-tray icon:
+
+- the engine starts automatically in the background;
+- **left-click the tray icon** (or "Open dashboard") to open the dashboard;
+- "Open extension folder" shows the folder to load unpacked in Chrome (step 2 below);
+- optional "Start when Windows starts".
+
+Settings are stored in `%APPDATA%\TokFlow`. Only the extension step below is still manual, because Chrome requires a human click to install unpacked extensions.
+
+## Developer setup (any computer)
 
 Requirements: Google Chrome and [Node.js](https://nodejs.org) 22+.
 

@@ -4,13 +4,45 @@
   "private": true,
   "type": "module",
   "description": "TokFlow — local TikTok LIVE data engine: real-time comments, likes, gifts and joins for dashboards and interactive games.",
+  "author": "Areal",
+  "main": "app/main.mjs",
   "scripts": {
     "start": "node src/server.js",
+    "app": "electron .",
+    "dist": "electron-builder --win nsis",
     "test": "node --test"
   },
   "dependencies": {
-    "playwright-core": "^1.54.0",
     "tiktok-live-connector": "^2.1.0",
     "ws": "^8.18.0"
+  },
+  "build": {
+    "appId": "app.tokflow.engine",
+    "productName": "TokFlow",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "app/**",
+      "src/**",
+      "public/**",
+      "extension/**",
+      "package.json",
+      "node_modules/**"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build-assets/tokflow.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "runAfterFinish": true,
+      "createDesktopShortcut": true,
+      "artifactName": "TokFlow-Setup-${version}.${ext}"
+    }
+  },
+  "devDependencies": {
+    "electron": "^43.3.0",
+    "electron-builder": "^26.15.3"
   }
 }

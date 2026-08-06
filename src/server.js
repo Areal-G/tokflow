@@ -13,10 +13,12 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const publicDir = path.join(root, "public");
 const port = Number(process.env.LIVE_ENGINE_PORT || 24880);
 const host = "127.0.0.1";
-const settingsStore = new SettingsStore(path.join(root, "data", "settings.json"));
+// Writable state lives outside the install dir when packaged (e.g. %APPDATA%).
+const dataDir = process.env.TOKFLOW_DATA_DIR || path.join(root, "data");
+const settingsStore = new SettingsStore(path.join(dataDir, "settings.json"));
 const saved = settingsStore.read();
 const provider = new TikTokProvider({
-  profileDir: path.join(root, "data", "tiktok-browser-profile"),
+  profileDir: path.join(dataDir, "tiktok-browser-profile"),
   extensionDir: path.join(root, "extension")
 });
 const recentEvents = new RecentEvents();
