@@ -4,3 +4,6 @@ dist/
 *.log
 Thumbs.db
 .DS_Store
+
+# the game lives in its own project (RegionBattle)
+public/games/
