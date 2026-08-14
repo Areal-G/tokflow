@@ -1,6 +1,6 @@
 {
   "name": "tokflow-engine",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "description": "TokFlow — local TikTok LIVE data engine: real-time comments, likes, gifts and joins for dashboards and interactive games.",
