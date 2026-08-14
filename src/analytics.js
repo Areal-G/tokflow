@@ -13,6 +13,11 @@ import path from "node:path";
    The CSV is written with a UTF-8 BOM on purpose: without it Excel renders
    Amharic usernames as mojibake, which would make the export useless here. */
 
+const GAME_COLUMNS = [
+  "timestamp", "gameId", "eventId", "type", "username", "displayName",
+  "relevant", "reason", "target", "points", "giftName", "coins", "comment"
+];
+
 const CSV_COLUMNS = [
   "timestamp", "sessionId", "type", "userId", "username", "displayName",
   "giftId", "giftName", "coinsPerGift", "repeatCount", "totalCoins",
@@ -25,7 +30,6 @@ function csvCell(value) {
   return /[",;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
 
-// Excel needs a byte-order mark or it mangles Amharic display names.
 // Excel mangles Amharic display names without a byte-order mark.
 const BOM = "﻿";
 const NL = "\n";
@@ -33,8 +37,10 @@ const NL = "\n";
 const dayStamp = (d) => d.toISOString().slice(0, 10);
 
 export class Analytics {
-  constructor(dir) {
+  constructor(dir, { enabled = true } = {}) {
     this.dir = dir;
+    this.enabled = enabled;
+    this.games = new Map();   // gameId -> { id, name, version, connectedAt }
     this.sessionId = new Date().toISOString().replace(/[:.]/g, "-");
     this.day = null;
     this.jsonl = null;
@@ -52,6 +58,7 @@ export class Analytics {
       coins: 0,
       gifts: 0,
       peakViewers: 0,
+      byGame: {},         // gameId -> how that game read the traffic
       users: new Map(),   // username -> tallies
       giftTallies: new Map()
     };
@@ -71,7 +78,65 @@ export class Analytics {
     }
   }
 
+  setEnabled(on) { this.enabled = !!on; }
+
+  registerGame(info = {}) {
+    const id = String(info.id || "unknown");
+    this.games.set(id, { id, name: info.name || id, version: info.version || "",
+      connectedAt: new Date().toISOString() });
+    return id;
+  }
+
+  /* A game tells us how it read an event: did it mean anything to that game,
+     why, and what it counted for. Raw events are logged either way — this is
+     the layer that separates "someone voted D" from "someone said hello", and
+     it is per game, so a second game can interpret the same stream its own way. */
+  annotate(a = {}) {
+    if (!this.enabled || !a || !a.eventId) return;
+    const now = new Date();
+    this.rotate(now);
+    const row = {
+      timestamp: a.timestamp || now.toISOString(),
+      gameId: a.gameId || "unknown",
+      eventId: a.eventId,
+      type: a.type || "",
+      username: a.username || "",
+      displayName: a.displayName || "",
+      relevant: a.relevant ? "yes" : "no",
+      reason: a.reason || "",
+      target: a.target || "",
+      points: a.points ?? "",
+      giftName: a.giftName || "",
+      coins: a.coins ?? "",
+      comment: a.comment || ""
+    };
+    const file = path.join(this.dir, "game-" + row.gameId + "-" + this.day + ".csv");
+    try {
+      if (!fs.existsSync(file)) fs.writeFileSync(file, BOM + GAME_COLUMNS.join(",") + NL, "utf8");
+      fs.appendFileSync(file, GAME_COLUMNS.map((c) => csvCell(row[c])).join(",") + NL, "utf8");
+    } catch {}
+    const g = this.gameTallies(row.gameId);
+    g.total += 1;
+    if (row.relevant === "yes") {
+      g.relevant += 1;
+      g.points += Number(row.points) || 0;
+      g.byReason[row.reason] = (g.byReason[row.reason] || 0) + 1;
+      if (row.target) g.byTarget[row.target] = (g.byTarget[row.target] || 0) + (Number(row.points) || 0);
+    } else {
+      g.ignored += 1;
+      if (row.type) g.ignoredByType[row.type] = (g.ignoredByType[row.type] || 0) + 1;
+    }
+  }
+
+  gameTallies(id) {
+    if (!this.totals.byGame[id])
+      this.totals.byGame[id] = { gameId: id, total: 0, relevant: 0, ignored: 0,
+        points: 0, byReason: {}, byTarget: {}, ignoredByType: {} };
+    return this.totals.byGame[id];
+  }
+
   record(event, viewerCount = 0) {
+    if (!this.enabled) return;   // collection switched off
     if (!event || !event.type) return;
     const now = new Date();
     this.rotate(now);
@@ -162,7 +227,10 @@ export class Analytics {
       })),
       topSharers: top("shares").map((u) => ({ username: u.username, shares: u.shares })),
       newFollowers: users.filter((u) => u.follows > 0).map((u) => u.username),
-      giftBreakdown: [...t.giftTallies.values()].sort((a, b) => b.coins - a.coins)
+      giftBreakdown: [...t.giftTallies.values()].sort((a, b) => b.coins - a.coins),
+      collecting: this.enabled,
+      games: [...this.games.values()],
+      byGame: Object.values(t.byGame)
     };
   }
 

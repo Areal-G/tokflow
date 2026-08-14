@@ -25,7 +25,8 @@ const provider = new TikTokProvider({
 const recentEvents = new RecentEvents();
 const viewerStats = new ViewerStats();
 // every event is written to disk for later analysis
-const analytics = new Analytics(path.join(dataDir, "analytics"));
+const analytics = new Analytics(path.join(dataDir, "analytics"),
+  { enabled: saved.collectAnalytics !== false });
 // rolled-up sheets rewrite themselves every minute — nothing to click
 analytics.startAutoExport(60000);
 const logBuffer = [];
@@ -59,6 +60,13 @@ const server = http.createServer((request, response) => {
 
   /* ── analytics ──────────────────────────────────────────────────────────
      Everything the engine has seen this session, plus the raw files on disk. */
+  if (requestPath === "/analytics/toggle") {
+    const on = new URL(request.url, `http://${host}:${port}`).searchParams.get("on") !== "0";
+    analytics.setEnabled(on);
+    settingsStore.write({ ...settingsStore.read(), collectAnalytics: on });
+    broadcast({ type: "analytics-state", collecting: on });
+    return sendJson(response, { collecting: on });
+  }
   if (requestPath === "/analytics/summary.json") return sendJson(response, analytics.summary());
   if (requestPath === "/analytics/files.json")   return sendJson(response, analytics.listFiles());
   if (requestPath === "/analytics/people.csv")
@@ -174,6 +182,7 @@ sockets.on("connection", (socket) => {
   socket.send(JSON.stringify({ type: "status", status }));
   socket.send(JSON.stringify({ type: "history", logs: logBuffer.slice(0, 50) }));
   socket.send(JSON.stringify({ type: "viewer-stats", viewers: viewerStats.snapshot() }));
+  socket.send(JSON.stringify({ type: "analytics-state", collecting: analytics.enabled }));
   socket.on("message", async (data) => {
     let command;
     try { command = JSON.parse(String(data)); } catch { return; }
@@ -186,6 +195,20 @@ sockets.on("connection", (socket) => {
         await provider.openLoginWindow();
       } else if (command.type === "disconnect") {
         await provider.disconnect();
+      } else if (command.type === "game-register") {
+        // any game announces itself once on connect
+        const id = analytics.registerGame(command.game || {});
+        socket.send(JSON.stringify({ type: "game-registered", gameId: id,
+          collecting: analytics.enabled }));
+      } else if (command.type === "game-annotate") {
+        // the game reporting how it read an event
+        analytics.annotate(command.annotation || {});
+      } else if (command.type === "set-analytics") {
+        const on = command.enabled !== false;
+        analytics.setEnabled(on);
+        settingsStore.write({ ...settingsStore.read(), collectAnalytics: on });
+        broadcast({ type: "analytics-state", collecting: on });
+        addLog("info", on ? "Data collection on." : "Data collection paused — nothing is being recorded.");
       } else if (command.type === "simulate") {
         const event = command.event;
         if (!event || typeof event !== "object") throw new Error("Invalid simulated event.");
