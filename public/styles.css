@@ -276,3 +276,16 @@ footer { display: flex; justify-content: space-between; gap: 12px; margin-top: 2
   }
   .viewer-row { grid-template-columns: 32px minmax(0, 1fr) repeat(3, 54px); }
 }
+
+/* ── connected games + data switch ── */
+.game-list { display: grid; gap: 8px; }
+.game-list .empty { display: grid; place-items: center; height: 66px; color: var(--faint); font-size: 12px; }
+.game-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--hairline); }
+.game-row:last-child { border-bottom: 0; }
+.game-dot { width: 8px; height: 8px; border-radius: 50%; background: #3FD07E; flex: none; box-shadow: 0 0 8px rgba(63,208,126,.7); }
+.game-name { font-size: 13.5px; font-weight: 700; }
+.game-meta { margin-left: auto; color: var(--faint); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.game-id { color: var(--muted); font-size: 11.5px; }
+.game-help { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--hairline); }
+.game-help p { color: var(--faint); font-size: 12px; margin: 0; }
+.panel-head a.quiet { text-decoration: none; }

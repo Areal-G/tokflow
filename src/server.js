@@ -177,12 +177,21 @@ provider.on("room-stats", ({ viewerCount, totalViewers }) => {
 provider.on("streak", (event) => broadcast({ type: "streak", event }));
 provider.on("event", (event) => processEvent(event));
 
+/* Which games are live right now. Keyed by socket so a game that closes its
+   tab disappears from the dashboard instead of lingering forever. */
+const liveGames = new Map();   // socket -> { id, name, version, connectedAt }
+function broadcastGames() {
+  broadcast({ type: "games", games: [...liveGames.values()] });
+}
+
 sockets.on("connection", (socket) => {
   socket.send(JSON.stringify({ type: "hello", protocol: "tokflow-live-engine", version: 1 }));
   socket.send(JSON.stringify({ type: "status", status }));
   socket.send(JSON.stringify({ type: "history", logs: logBuffer.slice(0, 50) }));
   socket.send(JSON.stringify({ type: "viewer-stats", viewers: viewerStats.snapshot() }));
   socket.send(JSON.stringify({ type: "analytics-state", collecting: analytics.enabled }));
+  socket.send(JSON.stringify({ type: "games", games: [...liveGames.values()] }));
+  socket.on("close", () => { if (liveGames.delete(socket)) broadcastGames(); });
   socket.on("message", async (data) => {
     let command;
     try { command = JSON.parse(String(data)); } catch { return; }
@@ -198,6 +207,11 @@ sockets.on("connection", (socket) => {
       } else if (command.type === "game-register") {
         // any game announces itself once on connect
         const id = analytics.registerGame(command.game || {});
+        const info = command.game || {};
+        liveGames.set(socket, { id, name: info.name || id, version: info.version || "",
+          connectedAt: new Date().toISOString() });
+        broadcastGames();
+        addLog("info", (info.name || id) + " connected to TokFlow.");
         socket.send(JSON.stringify({ type: "game-registered", gameId: id,
           collecting: analytics.enabled }));
       } else if (command.type === "game-annotate") {

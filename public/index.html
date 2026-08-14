@@ -89,6 +89,18 @@
 
     <div class="notice glass"><span>Engine</span><p id="systemNotice">The connector is ready.</p><button class="quiet" id="clearLog">Clear activity</button></div>
 
+    <section class="panel glass games">
+      <div class="panel-head">
+        <div><h3>Games</h3><p>Anything connected to this engine right now.</p></div>
+        <a class="quiet" href="/analytics.html">Open analytics</a>
+      </div>
+      <div id="gameList" class="game-list"><div class="empty">No game connected.</div></div>
+      <div class="game-help">
+        <label class="check glass"><input type="checkbox" id="collectData" checked>Save data</label>
+        <p id="collectHint">Recording every event to disk.</p>
+      </div>
+    </section>
+
     <section class="panel glass viewers">
       <div class="panel-head">
         <div><h3>Viewer totals</h3><p>Per-viewer comments, Gifts and Likes this session.</p></div>

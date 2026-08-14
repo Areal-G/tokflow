@@ -7,3 +7,7 @@ Thumbs.db
 
 # the game lives in its own project (RegionBattle)
 public/games/
+
+# Installers are built locally — GitHub rejects files over 100MB, and the
+# 1.1.0 build is 101MB. Ship them through Releases, not the repo.
+release/*.exe

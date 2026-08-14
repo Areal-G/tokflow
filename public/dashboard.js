@@ -367,6 +367,31 @@
     $("#connectButton").disabled = status.state === "connecting";
   });
 
+  function renderGames(games) {
+    const box = document.querySelector("#gameList");
+    if (!box) return;
+    if (!games.length) {
+      box.innerHTML = '<div class="empty">No game connected. Open a game and it appears here.</div>';
+      return;
+    }
+    box.innerHTML = games.map((g) => {
+      const since = g.connectedAt ? new Date(g.connectedAt).toLocaleTimeString() : "";
+      return '<div class="game-row"><span class="game-dot"></span>' +
+        '<span class="game-name">' + (g.name || g.id) + '</span>' +
+        '<span class="game-id">' + g.id + (g.version ? " v" + g.version : "") + '</span>' +
+        '<span class="game-meta">since ' + since + '</span></div>';
+    }).join("");
+  }
+
+  function renderCollecting(on) {
+    const box = document.querySelector("#collectData");
+    const hint = document.querySelector("#collectHint");
+    if (box) box.checked = on;
+    if (hint) hint.textContent = on
+      ? "Recording every event to disk."
+      : "Paused — nothing is being saved. Games keep playing.";
+  }
+
   client.addEventListener("message", ({ detail }) => {
     if (detail.type === "log") addCategorizedActivity(detail);
     if (detail.type === "history") {
@@ -375,6 +400,8 @@
     }
     if (detail.type === "viewer-stats") renderViewerStats(detail.viewers || []);
     if (detail.type === "command-error") addCategorizedActivity({ level: "error", message: detail.message });
+    if (detail.type === "games") renderGames(detail.games || []);
+    if (detail.type === "analytics-state") renderCollecting(detail.collecting !== false);
   });
 
   $("#connectForm").addEventListener("submit", (event) => {
@@ -385,6 +412,10 @@
   $("#openLoginButton").addEventListener("click", () => client.send({ type: "open-login" }));
   $("#clearLog").addEventListener("click", () => client.send({ type: "clear-log" }));
   $("#clearViewerStats").addEventListener("click", () => client.send({ type: "clear-viewer-stats" }));
+  // saving can be switched off from here so a rehearsal never lands in the numbers
+  $("#collectData").addEventListener("change", (event) => {
+    client.send({ type: "set-analytics", enabled: event.target.checked });
+  });
   $("#sendTest").addEventListener("click", () => {
     const now = Date.now();
     const coins = Math.max(0, Number($("#testCoins").value || 0));
