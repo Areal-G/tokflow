@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0B0B0D">
+<title>Analytics — TokFlow</title>
+<style>
+  *{ box-sizing:border-box; margin:0; padding:0 }
+  html{ color-scheme:dark }
+  body{ background:#0B0B0D; color:#ECECF1; padding:26px 22px 60px;
+    font-family:"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif }
+  .wrap{ max-width:1040px; margin:0 auto }
+  h1{ font-size:23px; font-weight:800; letter-spacing:-.02em }
+  .sub{ color:#9A9AA3; font-size:13px; margin:6px 0 22px; line-height:1.5 }
+  h2{ font-size:13px; font-weight:800; letter-spacing:.1em; color:#8B8B93;
+    margin:26px 0 12px; text-transform:uppercase }
+  .card{ background:#141419; border:1px solid #23232B; border-radius:12px; padding:16px 18px }
+  .tiles{ display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px }
+  .tile b{ display:block; font-size:26px; font-weight:800; font-variant-numeric:tabular-nums }
+  .tile span{ font-size:12px; color:#8B8B93 }
+  .bar{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:18px }
+  a.btn,button{ font:inherit; font-size:13px; font-weight:700; color:#ECECF1; cursor:pointer;
+    background:#1A1A20; border:1px solid #2A2A33; border-radius:8px; padding:9px 14px;
+    text-decoration:none; display:inline-block }
+  a.btn:hover,button:hover{ background:#23232B }
+  a.go{ background:#4C7DF0; border-color:#4C7DF0; color:#fff }
+  table{ width:100%; border-collapse:collapse; font-size:13px }
+  th{ text-align:left; color:#8B8B93; font-size:11px; font-weight:700; letter-spacing:.07em;
+    text-transform:uppercase; padding:0 10px 9px }
+  td{ padding:8px 10px; border-top:1px solid #1E1E26; vertical-align:middle }
+  td.n{ text-align:right; font-variant-numeric:tabular-nums; font-weight:700 }
+  .who{ display:flex; align-items:center; gap:9px }
+  .who img{ width:28px; height:28px; border-radius:50%; object-fit:cover; background:#222 }
+  .coins{ color:#F0C452 }
+  .empty{ color:#8B8B93; font-size:14px }
+  .cols{ display:grid; grid-template-columns:1fr 1fr; gap:18px }
+  @media (max-width:760px){ .cols{ grid-template-columns:1fr } }
+</style></head>
+<body><div class="wrap">
+<h1>Analytics</h1>
+<p class="sub">Every event this engine sees is written to disk as it happens — gifts, comments,
+likes, shares, follows and joins — so a stream can be analysed afterwards. Files are per day, and
+the CSVs open straight in Excel with Amharic names intact. Nothing here needs the game to be open.</p>
+
+<div class="bar">
+  <a class="btn go" href="/analytics/people.csv">Download people (CSV)</a>
+  <a class="btn" id="todayCsv" href="#">Download today's events (CSV)</a>
+  <button onclick="load()">Refresh</button>
+  <a class="btn" href="/">Back to TokFlow</a>
+</div>
+
+<div id="out"><p class="empty">Loading…</p></div>
+</div>
+
+<script>
+const n = (v) => (v || 0).toLocaleString();
+
+async function load(){
+  let s, files;
+  try {
+    s = await fetch("/analytics/summary.json", { cache:"no-store" }).then(r=>r.json());
+    files = await fetch("/analytics/files.json", { cache:"no-store" }).then(r=>r.json());
+  } catch {
+    document.getElementById("out").innerHTML =
+      '<p class="empty">Could not reach the engine. Is TokFlow running?</p>';
+    return;
+  }
+  document.getElementById("todayCsv").href = "/analytics/file/" + (s.files?.csv || "");
+
+  const t = s.totals || {};
+  const tiles = [
+    ["Coins received", n(t.coins), "coins"],
+    ["Gifts", n(t.gifts), ""],
+    ["Comments", n((t.byType||{}).comment), ""],
+    ["Shares", n((t.byType||{}).share), ""],
+    ["New follows", n((t.byType||{}).follow), ""],
+    ["People seen", n(t.uniquePeople), ""],
+    ["Peak viewers", n(t.peakViewers), ""],
+    ["Events logged", n(t.events), ""]
+  ].map(([label, val]) =>
+    '<div class="card tile"><b>' + val + '</b><span>' + label + '</span></div>').join("");
+
+  const person = (u, right, cls) =>
+    '<tr><td><div class="who">' +
+      (u.avatarUrl ? '<img src="' + u.avatarUrl + '" alt="">' : '<div style="width:28px;height:28px"></div>') +
+      '<div>' + (u.displayName || u.username) + '</div></div></td>' +
+      '<td class="n ' + (cls||"") + '">' + right + '</td></tr>';
+
+  const gifters = (s.topGifters||[]).length
+    ? '<table><tr><th>Gifter</th><th style="text-align:right">Coins</th></tr>' +
+      s.topGifters.map(u=>person(u, n(u.coins) + ' <span style="color:#8B8B93">(' + n(u.gifts) + ')</span>', "coins")).join("") + '</table>'
+    : '<p class="empty">No gifts yet.</p>';
+
+  const commenters = (s.topCommenters||[]).length
+    ? '<table><tr><th>Commenter</th><th style="text-align:right">Comments</th></tr>' +
+      s.topCommenters.map(u=>person(u, n(u.comments))).join("") + '</table>'
+    : '<p class="empty">No comments yet.</p>';
+
+  const gifts = (s.giftBreakdown||[]).length
+    ? '<table><tr><th>Gift</th><th style="text-align:right">Sent</th><th style="text-align:right">Coins</th></tr>' +
+      s.giftBreakdown.map(g=>'<tr><td>' + g.name + '</td><td class="n">' + n(g.count) +
+        '</td><td class="n coins">' + n(g.coins) + '</td></tr>').join("") + '</table>'
+    : '<p class="empty">No gifts yet.</p>';
+
+  const sharers = (s.topSharers||[]).length
+    ? '<table><tr><th>Sharer</th><th style="text-align:right">Shares</th></tr>' +
+      s.topSharers.map(u=>'<tr><td>' + u.username + '</td><td class="n">' + n(u.shares) + '</td></tr>').join("") + '</table>'
+    : '<p class="empty">No shares yet.</p>';
+
+  const fileRows = files.map(f =>
+    '<tr><td><a href="/analytics/file/' + encodeURIComponent(f.name) + '">' + f.name + '</a></td>' +
+    '<td class="n">' + Math.round(f.bytes/1024) + ' KB</td>' +
+    '<td class="n" style="font-weight:400;color:#8B8B93">' + new Date(f.modified).toLocaleString() + '</td></tr>').join("");
+
+  document.getElementById("out").innerHTML =
+    '<div class="tiles">' + tiles + '</div>' +
+    '<div class="cols"><div><h2>Top gifters</h2><div class="card">' + gifters + '</div></div>' +
+    '<div><h2>Top commenters</h2><div class="card">' + commenters + '</div></div></div>' +
+    '<div class="cols"><div><h2>Gifts received</h2><div class="card">' + gifts + '</div></div>' +
+    '<div><h2>Sharers</h2><div class="card">' + sharers + '</div></div></div>' +
+    '<h2>Saved files</h2><div class="card">' +
+      (fileRows ? '<table><tr><th>File</th><th style="text-align:right">Size</th><th style="text-align:right">Updated</th></tr>' + fileRows + '</table>'
+                : '<p class="empty">Nothing written yet.</p>') +
+    '</div>';
+}
+load();
+setInterval(load, 15000);
+</script>
+</body></html>

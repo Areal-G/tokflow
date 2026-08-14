@@ -8,6 +8,7 @@ import { RecentEvents } from "./recent-events.js";
 import { SettingsStore } from "./settings-store.js";
 import { toLegacyGameEvent } from "./event-normalizer.js";
 import { ViewerStats } from "./viewer-stats.js";
+import { Analytics } from "./analytics.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const publicDir = path.join(root, "public");
@@ -23,6 +24,10 @@ const provider = new TikTokProvider({
 });
 const recentEvents = new RecentEvents();
 const viewerStats = new ViewerStats();
+// every event is written to disk for later analysis
+const analytics = new Analytics(path.join(dataDir, "analytics"));
+// rolled-up sheets rewrite themselves every minute — nothing to click
+analytics.startAutoExport(60000);
 const logBuffer = [];
 let status = { state: "idle", message: "Ready to connect.", username: saved.username || "", autoReconnect: saved.autoReconnect !== false, viewerCount: 0, connectedAt: null };
 
@@ -35,8 +40,46 @@ const mime = {
   ".svg": "image/svg+xml"
 };
 
+function sendJson(response, body) {
+  const payload = JSON.stringify(body, null, 2);
+  response.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
+  response.end(payload);
+}
+function sendCsv(response, filename, text) {
+  response.writeHead(200, {
+    "Content-Type": "text/csv; charset=utf-8",
+    "Content-Disposition": 'attachment; filename="' + filename + '"',
+    "Cache-Control": "no-store"
+  });
+  response.end(text);
+}
+
 const server = http.createServer((request, response) => {
   const requestPath = new URL(request.url, `http://${host}:${port}`).pathname;
+
+  /* ── analytics ──────────────────────────────────────────────────────────
+     Everything the engine has seen this session, plus the raw files on disk. */
+  if (requestPath === "/analytics/summary.json") return sendJson(response, analytics.summary());
+  if (requestPath === "/analytics/files.json")   return sendJson(response, analytics.listFiles());
+  if (requestPath === "/analytics/people.csv")
+    return sendCsv(response, "people-" + analytics.day + ".csv", analytics.peopleCsv());
+  if (requestPath.startsWith("/analytics/file/")) {
+    const name = path.basename(decodeURIComponent(requestPath.slice("/analytics/file/".length)));
+    const full = path.join(dataDir, "analytics", name);
+    if (!full.startsWith(path.join(dataDir, "analytics")) || !fs.existsSync(full)) {
+      response.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+      response.end("No such export");
+      return;
+    }
+    response.writeHead(200, {
+      "Content-Type": name.endsWith(".csv") ? "text/csv; charset=utf-8" : "application/x-ndjson; charset=utf-8",
+      "Content-Disposition": 'attachment; filename="' + name + '"',
+      "Cache-Control": "no-store"
+    });
+    fs.createReadStream(full).pipe(response);
+    return;
+  }
+
   const relative = requestPath === "/" ? "index.html" : requestPath.replace(/^\/+/, "");
   const filePath = path.resolve(publicDir, relative);
   if (!filePath.startsWith(publicDir) || !fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
@@ -79,6 +122,7 @@ function processEvent(event, { simulated = false } = {}) {
     addLog("debug", `Ignored duplicate ${event.type} event.`);
     return;
   }
+  analytics.record(event, status.viewerCount || 0);
   const gameEvent = toLegacyGameEvent(event);
   broadcast({ type: "live-event", event, gameEvent });
   if (viewerStats.record(event)) broadcastViewerStats();
